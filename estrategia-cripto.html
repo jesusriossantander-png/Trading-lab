@@ -1,0 +1,1161 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Laboratorio de estrategias cripto</title>
+<script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.2.3/dist/lightweight-charts.standalone.production.js"></script>
+<style>
+:root{
+  --bg:#131722; --panel:#1e222d; --panel2:#2a2e39; --line:#2a2e39; --text:#d1d4dc; --muted:#787b86;
+  --blue:#2962ff; --up:#089981; --down:#f23645; --amber:#f7a600;
+  --font:-apple-system,BlinkMacSystemFont,"Trebuchet MS",Roboto,Ubuntu,sans-serif;
+  --paneH:130px;
+  box-sizing:border-box; padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+  color-scheme:dark;
+}
+*,*::before,*::after{box-sizing:inherit}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--text);font:13px/1.4 var(--font);display:flex;flex-direction:column;overflow:hidden}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--blue);outline-offset:1px}
+
+/* barra superior */
+.top{flex:none;display:flex;align-items:center;gap:4px;padding:6px 8px;border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:none}
+.top::-webkit-scrollbar{display:none}
+.sym{display:flex;align-items:center;gap:6px;background:transparent;border:1px solid transparent;border-radius:4px;padding:2px 6px}
+.sym:hover,.sym:focus-within{background:var(--panel)}
+.sym svg{flex:none;color:var(--muted)}
+.sym input{width:108px;background:none;border:0;font-weight:700;font-size:15px;text-transform:uppercase;outline:none}
+.sep{width:1px;height:22px;background:var(--line);margin:0 4px;flex:none}
+.tb{flex:none;background:none;border:0;border-radius:4px;padding:6px 8px;color:var(--text);white-space:nowrap;display:flex;align-items:center;gap:6px}
+.tb:hover{background:var(--panel)}
+.tb[aria-pressed="true"]{color:var(--blue)}
+.tb.tf{padding:6px 7px;font-weight:600}
+.tb select{background:none;border:0}
+.tb select option{background:var(--panel)}
+.status{margin-left:auto;flex:none;display:flex;align-items:center;gap:6px;color:var(--muted);padding:0 6px;white-space:nowrap}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--muted)}
+.status.live .dot{background:var(--up);box-shadow:0 0 0 3px rgba(8,153,129,.2)}
+.status.err .dot{background:var(--down)}
+
+/* gráficos */
+#charts{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+#mainPane{flex:3 1 0;min-height:140px;position:relative}
+.pane{flex:0 1 var(--paneH);min-height:64px;position:relative;border-top:1px solid var(--line)}
+.chartbox{position:absolute;inset:0}
+.legend{position:absolute;left:8px;top:6px;z-index:3;pointer-events:none;max-width:calc(100% - 90px)}
+.legend .row{display:flex;align-items:center;gap:6px;flex-wrap:wrap;min-height:20px}
+.legend .ttl{font-weight:600}
+.legend .ohlc span{margin-right:6px}
+.legend .ohlc b{font-weight:400;color:var(--muted);margin-right:2px}
+.legend .ind{pointer-events:auto;border-radius:3px;padding:0 3px;margin-left:-3px}
+.legend .ind:hover{background:rgba(42,46,57,.85)}
+.legend .ind .acts{display:none;gap:2px}
+.legend .ind:hover .acts,.legend .ind:focus-within .acts{display:inline-flex}
+.legend .act{background:none;border:0;padding:0 3px;color:var(--muted);font-size:13px;line-height:18px}
+.legend .act:hover{color:var(--text)}
+.legend .val{font-variant-numeric:tabular-nums}
+.overlay{position:absolute;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;background:var(--bg);text-align:center;padding:24px}
+.overlay[hidden]{display:none}
+.overlay .box{max-width:420px}
+.overlay h2{font-size:16px;margin:0 0 8px}
+.overlay p{color:var(--muted);margin:0 0 16px}
+.btn{background:var(--blue);border:0;border-radius:4px;padding:8px 14px;color:#fff;font-weight:600}
+.btn.ghost{background:var(--panel2);color:var(--text)}
+.spinner{width:28px;height:28px;border:3px solid var(--panel2);border-top-color:var(--blue);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 12px}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.spinner{animation-duration:3s}}
+
+/* probador de estrategias */
+#tester{flex:none;height:min(40vh,380px);display:flex;flex-direction:column;border-top:1px solid var(--line);background:var(--bg)}
+#tester.collapsed{height:auto}
+#tester.collapsed .tbody{display:none}
+.thead{display:flex;align-items:center;gap:2px;padding:0 6px;border-bottom:1px solid var(--line);flex:none;overflow-x:auto;scrollbar-width:none}
+.tab{background:none;border:0;padding:9px 10px;color:var(--muted);border-bottom:2px solid transparent;white-space:nowrap}
+.tab[aria-selected="true"]{color:var(--text);border-bottom-color:var(--blue)}
+.thead .sum{margin-left:auto;white-space:nowrap;padding:0 8px;font-variant-numeric:tabular-nums}
+.tbody{flex:1;min-height:0;overflow:auto}
+.tpanel{padding:12px}
+.tpanel[hidden]{display:none}
+.stats{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px 20px;margin-bottom:12px}
+.stat .k{color:var(--muted);font-size:12px}
+.stat .v{font-size:17px;font-variant-numeric:tabular-nums}
+.stat .s{font-size:12px;font-variant-numeric:tabular-nums}
+.pos{color:var(--up)} .neg{color:var(--down)}
+#equity{height:170px;position:relative}
+.tblwrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums;white-space:nowrap}
+th,td{padding:6px 10px;text-align:right;border-bottom:1px solid var(--line)}
+th{color:var(--muted);font-weight:400;position:sticky;top:0;background:var(--bg)}
+th:first-child,td:first-child,th:nth-child(2),td:nth-child(2){text-align:left}
+tbody tr{cursor:pointer}
+tbody tr:hover{background:var(--panel)}
+pre.code{margin:0;background:var(--panel);border-radius:4px;padding:12px;overflow:auto;font:12px/1.5 ui-monospace,Menlo,Consolas,monospace;color:#c8ccd6}
+.note{color:var(--muted);margin:0 0 10px}
+.empty{color:var(--muted);padding:16px 4px}
+
+/* paneles laterales */
+.scrim{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:20}
+.scrim[hidden]{display:none}
+.drawer{position:fixed;top:0;right:0;bottom:0;width:min(380px,100%);background:var(--panel);z-index:21;display:flex;flex-direction:column;transform:translateX(100%);transition:transform .18s ease;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);box-shadow:-8px 0 24px rgba(0,0,0,.35)}
+@media (prefers-reduced-motion:reduce){.drawer{transition:none}}
+.drawer.open{transform:none}
+.dhead{display:flex;align-items:center;padding:12px 14px;border-bottom:1px solid var(--line);flex:none}
+.dhead h2{font-size:15px;margin:0;flex:1}
+.x{background:none;border:0;color:var(--muted);font-size:20px;line-height:1;padding:4px 6px;border-radius:4px}
+.x:hover{color:var(--text);background:var(--panel2)}
+.dbody{flex:1;overflow:auto;padding:4px 14px 16px}
+.dfoot{flex:none;padding:12px 14px;border-top:1px solid var(--line);display:flex;gap:8px}
+.dfoot .btn{flex:1}
+.sec{margin:16px 0 6px;color:var(--muted);font-size:12px}
+.f{display:flex;align-items:center;gap:10px;padding:5px 0}
+.f label{flex:1}
+.f input[type=number],.f select{width:130px;background:var(--bg);border:1px solid var(--line);border-radius:4px;padding:5px 7px}
+.f input[type=number]:focus,.f select:focus{border-color:var(--blue);outline:none}
+.f.dis{opacity:.4}
+.f select{width:180px}
+.f input[type=checkbox]{width:16px;height:16px;accent-color:var(--blue)}
+.hint{color:var(--muted);font-size:12px;margin:2px 0 4px}
+.seg{display:flex;background:var(--bg);border-radius:4px;padding:2px;margin:12px 0 4px}
+.seg button{flex:1;background:none;border:0;padding:6px;border-radius:3px;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--panel2);color:var(--text)}
+textarea.code{width:100%;min-height:340px;background:var(--bg);border:1px solid var(--line);border-radius:4px;padding:10px;font:12px/1.5 ui-monospace,Menlo,Consolas,monospace;color:#c8ccd6;resize:vertical;tab-size:2}
+.err{color:var(--down);white-space:pre-wrap;font-size:12px;margin-top:8px}
+.addlist{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px}
+.addlist button{background:var(--bg);border:1px solid var(--line);border-radius:4px;padding:8px;text-align:left}
+.addlist button:hover{border-color:var(--blue)}
+.inst{border:1px solid var(--line);border-radius:4px;padding:8px 10px;margin-top:8px;background:var(--bg)}
+.inst .h{display:flex;align-items:center;gap:8px;font-weight:600}
+.inst .h span{flex:1}
+.inst input[type=color]{width:26px;height:22px;border:0;padding:0;background:none}
+.inst .f input[type=number]{width:90px;background:var(--panel)}
+.toggle{display:flex;align-items:center;gap:8px;padding:10px 0 2px}
+
+@media (max-width:700px){
+  :root{--paneH:96px}
+  .tb .lbl{display:none}
+  #tester{height:min(46vh,420px)}
+  .stats{grid-template-columns:1fr 1fr}
+}
+</style>
+</head>
+<body>
+<header class="top" role="toolbar" aria-label="Controles del gráfico">
+  <div class="sym">
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="7" cy="7" r="5" stroke="currentColor" stroke-width="1.5"/><path d="M11 11l3 3" stroke="currentColor" stroke-width="1.5"/></svg>
+    <input id="symbol" list="symbols" aria-label="Par (ej. BTCUSDT)" spellcheck="false" autocomplete="off">
+    <datalist id="symbols"></datalist>
+  </div>
+  <span class="sep"></span>
+  <div id="tfs" style="display:flex" role="group" aria-label="Temporalidad"></div>
+  <span class="sep"></span>
+  <label class="tb" title="Cantidad de velas a descargar">
+    <span class="lbl">Velas</span>
+    <select id="barsN"><option value="1000">1.000</option><option value="3000">3.000</option><option value="5000">5.000</option><option value="10000">10.000</option></select>
+  </label>
+  <span class="sep"></span>
+  <button class="tb" id="openInd"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true"><path d="M3 14c2-6 4-9 6-6s4 1 6-5" stroke="currentColor" stroke-width="1.5"/></svg><span class="lbl">Indicadores</span></button>
+  <button class="tb" id="openStrat"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true"><path d="M3 15V9m4 6V5m4 10v-4m4 4V3" stroke="currentColor" stroke-width="1.5"/></svg><span class="lbl">Estrategia</span></button>
+  <label class="tb" title="Importar velas exportadas desde TradingView (CSV)">
+    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true"><path d="M9 3v8m0 0l-3-3m3 3l3-3M3 13v2h12v-2" stroke="currentColor" stroke-width="1.5"/></svg><span class="lbl">CSV</span>
+    <input type="file" id="csv" accept=".csv,text/csv" hidden>
+  </label>
+  <div class="status" id="status" role="status"><span class="dot"></span><span id="statusTxt">—</span></div>
+</header>
+
+<div id="charts">
+  <div id="mainPane">
+    <div class="chartbox" id="mainChart"></div>
+    <div class="legend" id="mainLegend"></div>
+    <div class="overlay" id="overlay"><div class="box"><div class="spinner"></div><p id="overlayTxt">Cargando…</p></div></div>
+  </div>
+</div>
+
+<section id="tester" aria-label="Probador de estrategias">
+  <div class="thead" role="tablist">
+    <button class="tab" role="tab" data-tab="sum" aria-selected="true">Resumen</button>
+    <button class="tab" role="tab" data-tab="trades" aria-selected="false">Operaciones</button>
+    <button class="tab" role="tab" data-tab="pine" aria-selected="false">Pine Script</button>
+    <span class="sum" id="sumLine"></span>
+    <button class="x" id="toggleTester" aria-label="Contraer o expandir probador" aria-expanded="true">▾</button>
+  </div>
+  <div class="tbody">
+    <div class="tpanel" data-panel="sum"><div class="stats" id="stats"></div><div id="equity"></div></div>
+    <div class="tpanel" data-panel="trades" hidden><div class="tblwrap" id="trades"></div></div>
+    <div class="tpanel" data-panel="pine" hidden>
+      <p class="note" id="pineNote">Pegá este código en el Editor Pine de TradingView para comparar resultados.</p>
+      <div style="margin-bottom:8px"><button class="btn ghost" id="copyPine">Copiar código</button></div>
+      <pre class="code" id="pine"></pre>
+    </div>
+  </div>
+</section>
+
+<div class="scrim" id="scrim" hidden></div>
+<aside class="drawer" id="indDrawer" aria-label="Indicadores" aria-hidden="true">
+  <div class="dhead"><h2>Indicadores</h2><button class="x" data-close aria-label="Cerrar">×</button></div>
+  <div class="dbody">
+    <div class="sec">Agregar</div>
+    <div class="addlist" id="addList"></div>
+    <div class="sec">En el gráfico</div>
+    <div id="instList"></div>
+  </div>
+</aside>
+<aside class="drawer" id="stratDrawer" aria-label="Estrategia" aria-hidden="true">
+  <div class="dhead"><h2>Estrategia</h2><button class="x" data-close aria-label="Cerrar">×</button></div>
+  <div class="dbody">
+    <label class="toggle"><input type="checkbox" id="stratOn"> Mostrar estrategia en el gráfico</label>
+    <div class="seg" role="group" aria-label="Modo">
+      <button data-mode="builder">Constructor</button><button data-mode="code">Código</button>
+    </div>
+    <div id="builder"></div>
+    <div id="coder" hidden>
+      <p class="hint">JavaScript con las mismas fórmulas que Pine: <code>ta.ema, ta.sma, ta.rma, ta.rsi, ta.atr, ta.dmi, ta.macd, ta.bb, ta.stoch, ta.supertrend, ta.crossover, ta.crossunder…</code></p>
+      <textarea class="code" id="code" spellcheck="false" aria-label="Código de la estrategia"></textarea>
+      <div class="err" id="codeErr"></div>
+      <div id="coderCfg"></div>
+    </div>
+  </div>
+  <div class="dfoot"><button class="btn" id="runBt">Ejecutar backtest</button></div>
+</aside>
+
+<script>
+/* ===== Núcleo: indicadores (fórmulas idénticas a Pine Script v5) y motor de backtest ===== */
+const TA = (() => {
+  const N = (n) => new Array(n).fill(null);
+  const isNum = (v) => v !== null && v !== undefined && !Number.isNaN(v);
+
+  function sma(src, len) {
+    const out = N(src.length); let sum = 0, cnt = 0;
+    for (let i = 0; i < src.length; i++) {
+      const v = src[i];
+      if (!isNum(v)) { sum = 0; cnt = 0; continue; }
+      sum += v; cnt++;
+      if (cnt > len) { sum -= src[i - len]; cnt = len; }
+      if (cnt === len) out[i] = sum / len;
+    }
+    return out;
+  }
+  // ema/rma de Pine: se siembran con la SMA de los primeros `len` valores válidos
+  function smoothed(src, len, alpha) {
+    const out = N(src.length); let prev = null, cnt = 0, sum = 0;
+    for (let i = 0; i < src.length; i++) {
+      const v = src[i];
+      if (!isNum(v)) { out[i] = prev; continue; }
+      if (prev === null) {
+        sum += v; cnt++;
+        if (cnt === len) { prev = sum / len; out[i] = prev; }
+      } else { prev = alpha * v + (1 - alpha) * prev; out[i] = prev; }
+    }
+    return out;
+  }
+  const ema = (s, l) => smoothed(s, l, 2 / (l + 1));
+  const rma = (s, l) => smoothed(s, l, 1 / l);
+  function wma(src, len) {
+    const out = N(src.length); const den = len * (len + 1) / 2;
+    for (let i = len - 1; i < src.length; i++) {
+      let s = 0, ok = true;
+      for (let j = 0; j < len; j++) { const v = src[i - j]; if (!isNum(v)) { ok = false; break; } s += v * (len - j); }
+      if (ok) out[i] = s / den;
+    }
+    return out;
+  }
+  function change(src) { const o = N(src.length); for (let i = 1; i < src.length; i++) if (isNum(src[i]) && isNum(src[i - 1])) o[i] = src[i] - src[i - 1]; return o; }
+  function rsi(src, len) {
+    const ch = change(src);
+    const up = rma(ch.map(v => v === null ? null : Math.max(v, 0)), len);
+    const dn = rma(ch.map(v => v === null ? null : Math.max(-v, 0)), len);
+    return up.map((u, i) => { const d = dn[i]; if (u === null || d === null) return null; return d === 0 ? 100 : u === 0 ? 0 : 100 - 100 / (1 + u / d); });
+  }
+  function tr(h, l, c, handleNa) {
+    return h.map((_, i) => i === 0 ? (handleNa ? h[0] - l[0] : null)
+      : Math.max(h[i] - l[i], Math.abs(h[i] - c[i - 1]), Math.abs(l[i] - c[i - 1])));
+  }
+  const atr = (h, l, c, len) => rma(tr(h, l, c, true), len);
+  function dmi(h, l, c, len, smooth) {
+    const n = h.length, pDM = N(n), mDM = N(n);
+    for (let i = 1; i < n; i++) {
+      const up = h[i] - h[i - 1], down = l[i - 1] - l[i];
+      pDM[i] = up > down && up > 0 ? up : 0;
+      mDM[i] = down > up && down > 0 ? down : 0;
+    }
+    const trur = rma(tr(h, l, c, false), len);
+    const rp = rma(pDM, len), rm = rma(mDM, len);
+    const plus = N(n), minus = N(n); let lp = null, lm = null; // fixnan
+    for (let i = 0; i < n; i++) {
+      if (trur[i] !== null && rp[i] !== null && trur[i] !== 0) { lp = 100 * rp[i] / trur[i]; lm = 100 * rm[i] / trur[i]; }
+      plus[i] = lp; minus[i] = lm;
+    }
+    const dx = plus.map((p, i) => { if (p === null) return null; const s = p + minus[i]; return Math.abs(p - minus[i]) / (s === 0 ? 1 : s); });
+    const adx = rma(dx, smooth).map(v => v === null ? null : 100 * v);
+    return { plus, minus, adx };
+  }
+  function macd(src, f, s, sig) {
+    const a = ema(src, f), b = ema(src, s);
+    const m = a.map((v, i) => v === null || b[i] === null ? null : v - b[i]);
+    const sg = ema(m, sig);
+    return { macd: m, signal: sg, hist: m.map((v, i) => v === null || sg[i] === null ? null : v - sg[i]) };
+  }
+  function stdev(src, len) { // sesgada (poblacional), como ta.stdev de Pine
+    const mean = sma(src, len);
+    return mean.map((m, i) => { if (m === null) return null; let s = 0; for (let j = 0; j < len; j++) s += (src[i - j] - m) ** 2; return Math.sqrt(s / len); });
+  }
+  function bb(src, len, mult) {
+    const basis = sma(src, len), sd = stdev(src, len);
+    return { basis, upper: basis.map((b, i) => b === null ? null : b + mult * sd[i]), lower: basis.map((b, i) => b === null ? null : b - mult * sd[i]) };
+  }
+  function highest(src, len) { return src.map((_, i) => { if (i < len - 1) return null; let m = -Infinity; for (let j = 0; j < len; j++) m = Math.max(m, src[i - j]); return m; }); }
+  function lowest(src, len) { return src.map((_, i) => { if (i < len - 1) return null; let m = Infinity; for (let j = 0; j < len; j++) m = Math.min(m, src[i - j]); return m; }); }
+  function stoch(h, l, c, kLen, kSmooth, dLen) {
+    const hh = highest(h, kLen), ll = lowest(l, kLen);
+    const raw = c.map((v, i) => hh[i] === null ? null : (hh[i] - ll[i] === 0 ? 0 : 100 * (v - ll[i]) / (hh[i] - ll[i])));
+    const k = sma(raw, kSmooth); return { k, d: sma(k, dLen) };
+  }
+  function supertrend(h, l, c, factor, len) {
+    const n = c.length, a = atr(h, l, c, len), line = N(n), dir = N(n);
+    let pu = 0, pl = 0, pst = null;
+    for (let i = 0; i < n; i++) {
+      if (a[i] === null) continue;
+      const src = (h[i] + l[i]) / 2;
+      let up = src + factor * a[i], lo = src - factor * a[i];
+      const pc = i > 0 ? c[i - 1] : c[i];
+      lo = (lo > pl || pc < pl) ? lo : pl;
+      up = (up < pu || pc > pu) ? up : pu;
+      let d;
+      if (i === 0 || a[i - 1] === null) d = 1;
+      else if (pst === pu) d = c[i] > up ? -1 : 1;
+      else d = c[i] < lo ? 1 : -1;
+      const st = d === -1 ? lo : up;
+      line[i] = st; dir[i] = d; pst = st; pu = up; pl = lo;
+    }
+    return { line, dir };
+  }
+  function vwap(h, l, c, v, times) { // se reinicia cada día (UTC), como el VWAP de sesión
+    const out = N(c.length); let pv = 0, vv = 0, day = null;
+    for (let i = 0; i < c.length; i++) {
+      const d = Math.floor(times[i] / 86400000);
+      if (d !== day) { day = d; pv = 0; vv = 0; }
+      const tp = (h[i] + l[i] + c[i]) / 3; pv += tp * v[i]; vv += v[i];
+      out[i] = vv ? pv / vv : tp;
+    }
+    return out;
+  }
+  const crossover = (a, b, i) => i > 0 && [a[i], b[i], a[i - 1], b[i - 1]].every(isNum) && a[i] > b[i] && a[i - 1] <= b[i - 1];
+  const crossunder = (a, b, i) => i > 0 && [a[i], b[i], a[i - 1], b[i - 1]].every(isNum) && a[i] < b[i] && a[i - 1] >= b[i - 1];
+  return { sma, ema, rma, wma, rsi, tr, atr, dmi, macd, stdev, bb, highest, lowest, stoch, supertrend, vwap, change, crossover, crossunder, isNum };
+})();
+
+/* ===== Motor de backtest al estilo del emulador de TradingView =====
+   - La señal se evalúa al cierre de la vela i y la orden se llena en la apertura de i+1.
+   - Stop/Take profit dentro de la vela: si la apertura está más cerca del máximo, el precio
+     recorre apertura→máximo→mínimo→cierre; si no, apertura→mínimo→máximo→cierre.
+   - Si la apertura salta más allá del stop/objetivo, se llena en la apertura. */
+function runBacktest(bars, sig, cfg) {
+  const n = bars.length;
+  const commission = (cfg.commissionPct || 0) / 100;
+  let equity = cfg.capital, pos = null, pending = null;
+  const trades = [], equityCurve = [];
+  let peak = equity, maxDD = 0, maxDDpct = 0;
+  const allowLong = cfg.direction !== 'short', allowShort = cfg.direction !== 'long';
+
+  function open(side, i, price, s) {
+    const notional = equity * cfg.sizePct / 100;
+    const qty = notional / price;
+    equity -= notional * commission;
+    pos = { side, qty, entry: price, entryIdx: i, entryTime: bars[i].t, feeIn: notional * commission,
+      sl: s.sl ? (side === 1 ? s.ref - s.sl : s.ref + s.sl) : null,
+      tp: s.tp ? (side === 1 ? s.ref + s.tp : s.ref - s.tp) : null };
+  }
+  function close(i, price, reason) {
+    const gross = (price - pos.entry) * pos.qty * pos.side;
+    const feeOut = price * pos.qty * commission;
+    equity += gross - feeOut;
+    const pnl = gross - feeOut - pos.feeIn;
+    trades.push({ side: pos.side, entryIdx: pos.entryIdx, exitIdx: i, entryTime: pos.entryTime, exitTime: bars[i].t,
+      entry: pos.entry, exit: price, qty: pos.qty, pnl, pnlPct: pnl / (pos.entry * pos.qty) * 100, reason, equity });
+    pos = null;
+  }
+  function checkStops(i) {
+    if (!pos || (pos.sl === null && pos.tp === null)) return;
+    const b = bars[i];
+    const stopHit = (p) => pos.side === 1 ? p <= pos.sl : p >= pos.sl;
+    const tpHit = (p) => pos.side === 1 ? p >= pos.tp : p <= pos.tp;
+    if (pos.sl !== null && stopHit(b.o)) return close(i, b.o, 'Stop');
+    if (pos.tp !== null && tpHit(b.o)) return close(i, b.o, 'Objetivo');
+    const path = (b.h - b.o) < (b.o - b.l) ? [b.h, b.l] : [b.l, b.h];
+    for (const p of path) {
+      if (pos.sl !== null && stopHit(p)) return close(i, pos.sl, 'Stop');
+      if (pos.tp !== null && tpHit(p)) return close(i, pos.tp, 'Objetivo');
+    }
+  }
+
+  for (let i = 0; i < n; i++) {
+    const b = bars[i];
+    // 1) ejecutar órdenes pendientes en la apertura
+    if (pending) {
+      if (pending.exit && pos) close(i, b.o, pending.exitReason);
+      if (pending.side && (!pos || pos.side !== pending.side)) {
+        if (pos) close(i, b.o, 'Reversa');
+        open(pending.side, i, b.o, pending);
+      }
+      pending = null;
+    }
+    // 2) stops dentro de la vela
+    checkStops(i);
+    // 3) señales al cierre
+    if (i < n - 1) {
+      const le = allowLong && sig.longEntry(i), se = allowShort && sig.shortEntry(i);
+      const dist = (fn) => { const v = fn ? fn(i) : null; return TA.isNum(v) && v > 0 ? v : null; };
+      // los niveles de stop/objetivo se fijan desde el cierre de la vela de señal (igual que el Pine exportado)
+      if (le && !(pos && pos.side === 1)) pending = { side: 1, ref: b.c, sl: dist(sig.stopDist), tp: dist(sig.tpDist) };
+      else if (se && !(pos && pos.side === -1)) pending = { side: -1, ref: b.c, sl: dist(sig.stopDist), tp: dist(sig.tpDist) };
+      else if (pos && pos.side === 1 && sig.longExit && sig.longExit(i)) pending = { exit: true, exitReason: 'Señal salida' };
+      else if (pos && pos.side === -1 && sig.shortExit && sig.shortExit(i)) pending = { exit: true, exitReason: 'Señal salida' };
+      // si sólo se opera en un sentido, la señal contraria cierra la posición
+      if (!pending && pos && cfg.exitOnOpposite) {
+        if (pos.side === 1 && sig.shortEntry(i)) pending = { exit: true, exitReason: 'Señal opuesta' };
+        if (pos.side === -1 && sig.longEntry(i)) pending = { exit: true, exitReason: 'Señal opuesta' };
+      }
+    }
+    // 4) equity marcada a mercado al cierre
+    const mtm = equity + (pos ? (b.c - pos.entry) * pos.qty * pos.side : 0);
+    equityCurve.push({ t: b.t, v: mtm });
+    if (mtm > peak) peak = mtm;
+    const dd = peak - mtm;
+    if (dd > maxDD) maxDD = dd;
+    if (peak > 0 && dd / peak > maxDDpct) maxDDpct = dd / peak;
+  }
+  const last = bars[n - 1];
+  const openTrade = pos ? { ...pos, unrealized: (last.c - pos.entry) * pos.qty * pos.side } : null;
+
+  const wins = trades.filter(t => t.pnl > 0), losses = trades.filter(t => t.pnl <= 0);
+  const grossWin = wins.reduce((a, t) => a + t.pnl, 0), grossLoss = -losses.reduce((a, t) => a + t.pnl, 0);
+  const net = equity - cfg.capital;
+  const firstIdx = bars.findIndex((_, i) => i >= (sig.warmup || 0));
+  const bh = bars.length ? (last.c / bars[Math.max(firstIdx, 0)].c - 1) * 100 : 0;
+  const stats = {
+    net, netPct: net / cfg.capital * 100, trades: trades.length, wins: wins.length, losses: losses.length,
+    winRate: trades.length ? wins.length / trades.length * 100 : 0,
+    profitFactor: grossLoss > 0 ? grossWin / grossLoss : (grossWin > 0 ? Infinity : 0),
+    maxDD, maxDDpct: maxDDpct * 100, avgTrade: trades.length ? trades.reduce((a, t) => a + t.pnl, 0) / trades.length : 0,
+    avgWin: wins.length ? grossWin / wins.length : 0, avgLoss: losses.length ? grossLoss / losses.length : 0,
+    largestWin: wins.length ? Math.max(...wins.map(t => t.pnl)) : 0, largestLoss: losses.length ? Math.min(...losses.map(t => t.pnl)) : 0,
+    buyHoldPct: bh, longs: trades.filter(t => t.side === 1).length, shorts: trades.filter(t => t.side === -1).length,
+    finalEquity: equity,
+  };
+  return { trades, equityCurve, stats, openTrade };
+}
+
+/* ===== Estrategia del constructor visual ===== */
+function buildStrategy(bars, s) {
+  const c = bars.map(b => b.c), h = bars.map(b => b.h), l = bars.map(b => b.l);
+  const fast = TA.ema(c, s.fastLen), slow = TA.ema(c, s.slowLen);
+  const r = TA.rsi(c, s.rsiLen), a = TA.atr(h, l, c, s.atrLen);
+  const dm = TA.dmi(h, l, c, s.adxLen, s.adxLen);
+  const md = TA.macd(c, 12, 26, 9), st = TA.supertrend(h, l, c, s.stFactor, s.stLen);
+  const longTrig = (i) => {
+    switch (s.entry) {
+      case 'emaCross': return TA.crossover(fast, slow, i);
+      case 'priceCross': return TA.crossover(c, slow, i);
+      case 'macdCross': return TA.crossover(md.macd, md.signal, i);
+      case 'stFlip': return st.dir[i] === -1 && st.dir[i - 1] === 1;
+    }
+  };
+  const shortTrig = (i) => {
+    switch (s.entry) {
+      case 'emaCross': return TA.crossunder(fast, slow, i);
+      case 'priceCross': return TA.crossunder(c, slow, i);
+      case 'macdCross': return TA.crossunder(md.macd, md.signal, i);
+      case 'stFlip': return st.dir[i] === 1 && st.dir[i - 1] === -1;
+    }
+  };
+  const filt = (i, side) => {
+    if (s.useTrend) { if (slow[i] === null) return false; if (side === 1 ? c[i] <= slow[i] : c[i] >= slow[i]) return false; }
+    if (s.useRsi) { const v = r[i]; if (v === null) return false;
+      const lo = side === 1 ? s.rsiMin : 100 - s.rsiMax, hi = side === 1 ? s.rsiMax : 100 - s.rsiMin;
+      if (v < lo || v > hi) return false; }
+    if (s.useAdx) { if (dm.adx[i] === null || dm.adx[i] < s.adxMin) return false;
+      if (s.useDi && (side === 1 ? dm.plus[i] <= dm.minus[i] : dm.minus[i] <= dm.plus[i])) return false; }
+    return true;
+  };
+  return {
+    longEntry: (i) => !!longTrig(i) && filt(i, 1),
+    shortEntry: (i) => !!shortTrig(i) && filt(i, -1),
+    stopDist: s.useSl ? (i) => a[i] === null ? null : a[i] * s.slMult : null,
+    tpDist: s.useTp ? (i) => a[i] === null ? null : a[i] * s.tpMult : null,
+    warmup: Math.max(s.slowLen, s.adxLen * 2, s.rsiLen),
+  };
+}
+
+/* ===== Exportar el constructor a Pine Script v5 ===== */
+function toPine(s, cfg, symbol) {
+  const L = [];
+  L.push('//@version=5');
+  L.push(`strategy("Lab ${symbol} – ${({emaCross:'Cruce EMA',priceCross:'Precio/EMA',macdCross:'MACD',stFlip:'SuperTrend'})[s.entry]}", overlay=true,`);
+  L.push(`     initial_capital=${cfg.capital}, default_qty_type=strategy.percent_of_equity, default_qty_value=${cfg.sizePct},`);
+  L.push(`     commission_type=strategy.commission.percent, commission_value=${cfg.commissionPct})`);
+  L.push('');
+  L.push(`emaF = ta.ema(close, ${s.fastLen})`);
+  L.push(`emaS = ta.ema(close, ${s.slowLen})`);
+  L.push(`rsi  = ta.rsi(close, ${s.rsiLen})`);
+  L.push(`atr  = ta.atr(${s.atrLen})`);
+  L.push(`[diPlus, diMinus, adx] = ta.dmi(${s.adxLen}, ${s.adxLen})`);
+  if (s.entry === 'macdCross') L.push('[macdLine, sigLine, _h] = ta.macd(close, 12, 26, 9)');
+  if (s.entry === 'stFlip') L.push(`[stLine, stDir] = ta.supertrend(${s.stFactor}, ${s.stLen})`);
+  L.push('');
+  const trig = {
+    emaCross: ['ta.crossover(emaF, emaS)', 'ta.crossunder(emaF, emaS)'],
+    priceCross: ['ta.crossover(close, emaS)', 'ta.crossunder(close, emaS)'],
+    macdCross: ['ta.crossover(macdLine, sigLine)', 'ta.crossunder(macdLine, sigLine)'],
+    stFlip: ['stDir == -1 and stDir[1] == 1', 'stDir == 1 and stDir[1] == -1'],
+  }[s.entry];
+  const lf = [trig[0]], sf = [trig[1]];
+  if (s.useTrend) { lf.push('close > emaS'); sf.push('close < emaS'); }
+  if (s.useRsi) { lf.push(`rsi >= ${s.rsiMin} and rsi <= ${s.rsiMax}`); sf.push(`rsi >= ${100 - s.rsiMax} and rsi <= ${100 - s.rsiMin}`); }
+  if (s.useAdx) { lf.push(`adx >= ${s.adxMin}`); sf.push(`adx >= ${s.adxMin}`);
+    if (s.useDi) { lf.push('diPlus > diMinus'); sf.push('diMinus > diPlus'); } }
+  L.push(`longCond  = ${lf.join(' and ')}`);
+  L.push(`shortCond = ${sf.join(' and ')}`);
+  L.push('');
+  L.push('var float slL = na, var float tpL = na, var float slC = na, var float tpC = na'.replace(/, var/g, '\nvar'));
+  const dirs = { both: [true, true], long: [true, false], short: [false, true] }[cfg.direction];
+  if (dirs[0]) { L.push('if longCond'); L.push(`    slL := close - atr * ${s.slMult}`); L.push(`    tpL := close + atr * ${s.tpMult}`); L.push('    strategy.entry("Largo", strategy.long)'); }
+  if (dirs[1]) { L.push('if shortCond'); L.push(`    slC := close + atr * ${s.slMult}`); L.push(`    tpC := close - atr * ${s.tpMult}`); L.push('    strategy.entry("Corto", strategy.short)'); }
+  if (cfg.exitOnOpposite && !(dirs[0] && dirs[1])) {
+    if (dirs[0]) L.push('if shortCond\n    strategy.close("Largo", comment="Señal opuesta")');
+    if (dirs[1]) L.push('if longCond\n    strategy.close("Corto", comment="Señal opuesta")');
+  }
+  if (s.useSl || s.useTp) {
+    L.push('');
+    const args = (sl, tp) => [s.useSl ? `stop=${sl}` : '', s.useTp ? `limit=${tp}` : ''].filter(Boolean).join(', ');
+    if (dirs[0]) L.push(`strategy.exit("Salida L", "Largo", ${args('slL', 'tpL')})`);
+    if (dirs[1]) L.push(`strategy.exit("Salida C", "Corto", ${args('slC', 'tpC')})`);
+  }
+  L.push('');
+  L.push(`plot(emaF, "EMA ${s.fastLen}", color=#f7a600)`);
+  L.push(`plot(emaS, "EMA ${s.slowLen}", color=#2962ff, linewidth=2)`);
+  return L.join('\n');
+}
+
+
+
+</script>
+<script>
+(() => {
+const LW = window.LightweightCharts;
+const $ = (s, el = document) => el.querySelector(s);
+const $$ = (s, el = document) => [...el.querySelectorAll(s)];
+const store = {
+  get(k, d) { try { const v = localStorage.getItem('lab:' + k); return v ? JSON.parse(v) : d; } catch { return d; } },
+  set(k, v) { try { localStorage.setItem('lab:' + k, JSON.stringify(v)); } catch {} },
+};
+const TZ = -new Date().getTimezoneOffset() * 60;           // el gráfico muestra hora local
+const toCT = (t) => Math.floor(t / 1000) + TZ;
+const debounce = (fn, ms) => { let h; return (...a) => { clearTimeout(h); h = setTimeout(() => fn(...a), ms); }; };
+const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+
+const TFS = [['1m', '1m'], ['5m', '5m'], ['15m', '15m'], ['30m', '30m'], ['1h', '1H'], ['4h', '4H'], ['1d', '1D'], ['1w', '1S']];
+const SYMBOLS = ['BTCUSDT','ETHUSDT','BNBUSDT','SOLUSDT','XRPUSDT','ADAUSDT','DOGEUSDT','AVAXUSDT','LINKUSDT','DOTUSDT','LTCUSDT','TRXUSDT','TONUSDT','ATOMUSDT','NEARUSDT','APTUSDT','ARBUSDT','OPUSDT','SUIUSDT','POLUSDT','UNIUSDT','AAVEUSDT','INJUSDT','PEPEUSDT','SHIBUSDT','ETHBTC','BTCUSDC'];
+const QUOTES = ['USDT', 'USDC', 'FDUSD', 'BTC', 'ETH', 'BNB', 'EUR', 'TRY', 'BRL', 'ARS'];
+const REST = ['https://data-api.binance.vision', 'https://api.binance.com'];
+const WSS = ['wss://data-stream.binance.vision/ws/', 'wss://stream.binance.com:9443/ws/'];
+
+/* ---------- Catálogo de indicadores ---------- */
+const IND = {
+  ema:  { label: 'Media móvil exponencial', short: 'EMA', overlay: true, params: { len: ['Longitud', 21] },
+          calc: (d, p, c) => [{ title: `EMA ${p.len}`, data: TA.ema(d.c, p.len), color: c, width: 2 }] },
+  sma:  { label: 'Media móvil simple', short: 'SMA', overlay: true, params: { len: ['Longitud', 50] },
+          calc: (d, p, c) => [{ title: `SMA ${p.len}`, data: TA.sma(d.c, p.len), color: c, width: 2 }] },
+  wma:  { label: 'Media móvil ponderada', short: 'WMA', overlay: true, params: { len: ['Longitud', 20] },
+          calc: (d, p, c) => [{ title: `WMA ${p.len}`, data: TA.wma(d.c, p.len), color: c, width: 2 }] },
+  bb:   { label: 'Bandas de Bollinger', short: 'BB', overlay: true, params: { len: ['Longitud', 20], mult: ['Desv. estándar', 2] },
+          calc: (d, p, c) => { const b = TA.bb(d.c, p.len, p.mult); return [
+            { title: 'Base', data: b.basis, color: '#ff6d00', width: 1 }, { title: 'Sup.', data: b.upper, color: c, width: 1 }, { title: 'Inf.', data: b.lower, color: c, width: 1 }]; } },
+  st:   { label: 'SuperTrend', short: 'SuperTrend', overlay: true, params: { factor: ['Factor', 3], len: ['Longitud ATR', 10] },
+          calc: (d, p) => { const s = TA.supertrend(d.h, d.l, d.c, p.factor, p.len); return [
+            { title: 'ST', data: s.line, width: 2, colorAt: (i) => s.dir[i] === -1 ? '#089981' : '#f23645' }]; } },
+  vwap: { label: 'VWAP (diario)', short: 'VWAP', overlay: true, params: {},
+          calc: (d, p, c) => [{ title: 'VWAP', data: TA.vwap(d.h, d.l, d.c, d.v, d.t), color: c, width: 2 }] },
+  vol:  { label: 'Volumen', short: 'Vol', overlay: true, params: {}, volume: true, calc: () => [] },
+  rsi:  { label: 'Índice de fuerza relativa', short: 'RSI', params: { len: ['Longitud', 14] }, levels: [70, 30], band: [0, 100],
+          calc: (d, p, c) => [{ title: `RSI ${p.len}`, data: TA.rsi(d.c, p.len), color: c, width: 2, dp: 2 }] },
+  adx:  { label: 'ADX / DMI', short: 'DMI', params: { len: ['Longitud DI', 14], smooth: ['Suavizado ADX', 14] }, levels: [20],
+          calc: (d, p, c) => { const m = TA.dmi(d.h, d.l, d.c, p.len, p.smooth); return [
+            { title: 'ADX', data: m.adx, color: c, width: 2, dp: 2 }, { title: '+DI', data: m.plus, color: '#2962ff', width: 1, dp: 2 }, { title: '−DI', data: m.minus, color: '#ff6d00', width: 1, dp: 2 }]; } },
+  atr:  { label: 'Rango verdadero promedio', short: 'ATR', params: { len: ['Longitud', 14] },
+          calc: (d, p, c) => [{ title: `ATR ${p.len}`, data: TA.atr(d.h, d.l, d.c, p.len), color: c, width: 2 }] },
+  macd: { label: 'MACD', short: 'MACD', params: { f: ['Rápida', 12], s: ['Lenta', 26], sig: ['Señal', 9] },
+          calc: (d, p, c) => { const m = TA.macd(d.c, p.f, p.s, p.sig); return [
+            { title: 'Hist.', data: m.hist, hist: true, colorAt: (i) => { const v = m.hist[i], pv = m.hist[i - 1] ?? 0; return v >= 0 ? (v >= pv ? '#26a69a' : '#b2dfdb') : (v < pv ? '#ff5252' : '#ffcdd2'); } },
+            { title: 'MACD', data: m.macd, color: c, width: 2 }, { title: 'Señal', data: m.signal, color: '#ff6d00', width: 1 }]; } },
+  stoch:{ label: 'Estocástico', short: 'Stoch', params: { k: ['%K', 14], ks: ['Suavizado %K', 1], d: ['%D', 3] }, levels: [80, 20], band: [0, 100],
+          calc: (d, p, c) => { const s = TA.stoch(d.h, d.l, d.c, p.k, p.ks, p.d); return [
+            { title: '%K', data: s.k, color: c, width: 2, dp: 2 }, { title: '%D', data: s.d, color: '#ff6d00', width: 1, dp: 2 }]; } },
+};
+const PALETTE = ['#f7a600', '#2962ff', '#e040fb', '#00bcd4', '#ff6d00', '#8bc34a', '#ffeb3b', '#7e57c2'];
+
+const DEF_IND = [
+  { id: 'a1', type: 'ema', p: { len: 21 }, color: '#f7a600' },
+  { id: 'a2', type: 'ema', p: { len: 89 }, color: '#2962ff' },
+  { id: 'a3', type: 'vol', p: {}, color: '#787b86' },
+  { id: 'a4', type: 'rsi', p: { len: 14 }, color: '#7e57c2' },
+  { id: 'a5', type: 'adx', p: { len: 14, smooth: 14 }, color: '#f23645' },
+];
+const DEF_STRAT = { entry: 'emaCross', fastLen: 21, slowLen: 89, stFactor: 3, stLen: 10, useTrend: false,
+  useRsi: true, rsiLen: 14, rsiMin: 40, rsiMax: 70, useAdx: true, adxLen: 14, adxMin: 20, useDi: true,
+  useSl: true, atrLen: 14, slMult: 1.5, useTp: true, tpMult: 3 };
+const DEF_CFG = { capital: 1000, sizePct: 100, commissionPct: 0.1, direction: 'both', exitOnOpposite: true };
+const DEF_CODE = `// Datos: open, high, low, close, volume, time (arrays, una posición por vela)
+// Indicadores: ta.* con las mismas fórmulas que Pine Script v5.
+// Devolvé funciones que reciben el índice de la vela (i).
+
+const emaF = ta.ema(close, 21);
+const emaS = ta.ema(close, 89);
+const rsi  = ta.rsi(close, 14);
+const atr  = ta.atr(high, low, close, 14);
+const { plus, minus, adx } = ta.dmi(high, low, close, 14, 14);
+
+return {
+  longEntry:  i => ta.crossover(emaF, emaS, i) && rsi[i] < 70 && adx[i] > 20 && plus[i] > minus[i],
+  shortEntry: i => ta.crossunder(emaF, emaS, i) && rsi[i] > 30 && adx[i] > 20 && minus[i] > plus[i],
+  longExit:   i => false,
+  shortExit:  i => false,
+  stopDist:   i => atr[i] * 1.5,   // distancia del stop en precio (null = sin stop)
+  tpDist:     i => atr[i] * 3,     // distancia del objetivo (null = sin objetivo)
+  plots: [
+    { title: 'EMA 21', data: emaF, color: '#f7a600' },
+    { title: 'EMA 89', data: emaS, color: '#2962ff' },
+  ],
+};`;
+
+const S = {
+  symbol: store.get('symbol', 'BTCUSDT'), tf: store.get('tf', '1h'), barsN: store.get('barsN', 3000),
+  inds: store.get('inds', DEF_IND), strat: { ...DEF_STRAT, ...store.get('strat', {}) }, cfg: { ...DEF_CFG, ...store.get('cfg', {}) },
+  mode: store.get('mode', 'builder'), code: store.get('code', DEF_CODE), stratOn: store.get('stratOn', true),
+  bars: [], src: null, ws: null, loadId: 0, result: null, plots: [],
+};
+const save = () => { ['symbol', 'tf', 'barsN', 'inds', 'strat', 'cfg', 'mode', 'code', 'stratOn'].forEach(k => store.set(k, S[k])); };
+
+/* ---------- Gráficos ---------- */
+const chartOpts = (showTime, logo = false) => ({
+  autoSize: true,
+  layout: { background: { type: 'solid', color: '#131722' }, textColor: '#b2b5be', fontFamily: getComputedStyle(document.body).fontFamily, fontSize: 11, attributionLogo: logo },
+  grid: { vertLines: { color: '#1c202b' }, horzLines: { color: '#1c202b' } },
+  crosshair: { mode: LW.CrosshairMode.Normal, vertLine: { color: '#758696', labelBackgroundColor: '#363a45' }, horzLine: { color: '#758696', labelBackgroundColor: '#363a45' } },
+  rightPriceScale: { borderColor: '#2a2e39', minimumWidth: 72 },
+  timeScale: { borderColor: '#2a2e39', visible: showTime, timeVisible: true, secondsVisible: false, rightOffset: 8, barSpacing: 7 },
+  localization: { locale: 'es-AR' },
+  handleScale: { axisPressedMouseMove: true },
+});
+const main = LW.createChart($('#mainChart'), chartOpts(true, true));
+const candle = main.addCandlestickSeries({ upColor: '#089981', downColor: '#f23645', borderVisible: false, wickUpColor: '#089981', wickDownColor: '#f23645' });
+let overlaySeries = [];   // {inst, out, series}
+let volSeries = null;
+let panes = [];           // {inst, chart, el, legend, items:[{out, series}]}
+let stratSeries = [];
+let priceLines = [];
+let D = null;             // columnas: t,o,h,l,c,v y tiempos del gráfico T
+const idxByTime = new Map();
+
+function columns(bars) {
+  const d = { t: [], o: [], h: [], l: [], c: [], v: [], T: [] };
+  for (const b of bars) { d.t.push(b.t); d.o.push(b.o); d.h.push(b.h); d.l.push(b.l); d.c.push(b.c); d.v.push(b.v); d.T.push(toCT(b.t)); }
+  return d;
+}
+const lineData = (out, T) => out.data.map((v, i) => v === null || !isFinite(v) ? { time: T[i] } :
+  (out.colorAt ? { time: T[i], value: v, color: out.colorAt(i) } : { time: T[i], value: v }));
+const point = (out, T, i) => { const v = out.data[i]; return v === null || !isFinite(v) ? { time: T[i] } : (out.colorAt ? { time: T[i], value: v, color: out.colorAt(i) } : { time: T[i], value: v }); };
+
+function priceFormat(p) {
+  const dp = p >= 1000 ? 2 : p >= 10 ? 3 : p >= 1 ? 4 : p >= 0.01 ? 5 : 8;
+  return { type: 'price', precision: dp, minMove: 1 / 10 ** dp };
+}
+let PDP = 2;
+const fp = (v, dp = PDP) => v === null || v === undefined || !isFinite(v) ? '—' : v.toLocaleString('es-AR', { minimumFractionDigits: dp, maximumFractionDigits: dp });
+const fvol = (v) => v >= 1e9 ? (v / 1e9).toFixed(2) + ' B' : v >= 1e6 ? (v / 1e6).toFixed(2) + ' M' : v >= 1e3 ? (v / 1e3).toFixed(2) + ' K' : v.toLocaleString('es-AR', { maximumFractionDigits: 2 });
+
+function clearIndicators() {
+  overlaySeries.forEach(o => main.removeSeries(o.series)); overlaySeries = [];
+  if (volSeries) { main.removeSeries(volSeries); volSeries = null; }
+  panes.forEach(p => { p.chart.remove(); p.el.remove(); }); panes = [];
+}
+
+function buildIndicators() {
+  clearIndicators();
+  if (!D) return;
+  for (const inst of S.inds) {
+    const def = IND[inst.type]; if (!def) continue;
+    if (def.volume) {
+      volSeries = main.addHistogramSeries({ priceScaleId: 'vol', priceFormat: { type: 'volume' }, lastValueVisible: false, priceLineVisible: false });
+      main.priceScale('vol').applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
+      volSeries.setData(D.v.map((v, i) => ({ time: D.T[i], value: v, color: D.c[i] >= D.o[i] ? 'rgba(8,153,129,.45)' : 'rgba(242,54,69,.45)' })));
+      continue;
+    }
+    const outs = def.calc(D, inst.p, inst.color);
+    if (def.overlay) {
+      for (const out of outs) {
+        const s = main.addLineSeries({ color: out.color || inst.color, lineWidth: out.width || 1, lastValueVisible: false, priceLineVisible: false, crosshairMarkerVisible: false });
+        s.setData(lineData(out, D.T));
+        overlaySeries.push({ inst, out, series: s });
+      }
+    } else {
+      const el = document.createElement('div'); el.className = 'pane';
+      el.innerHTML = '<div class="chartbox"></div><div class="legend"></div>';
+      $('#charts').appendChild(el);
+      const ch = LW.createChart($('.chartbox', el), chartOpts(false));
+      const items = [];
+      for (const out of outs) {
+        const s = out.hist
+          ? ch.addHistogramSeries({ priceLineVisible: false, lastValueVisible: false })
+          : ch.addLineSeries({ color: out.color, lineWidth: out.width || 1, priceLineVisible: false, lastValueVisible: true, crosshairMarkerVisible: false,
+              priceFormat: { type: 'price', precision: out.dp ?? PDP, minMove: 1 / 10 ** (out.dp ?? PDP) } });
+        s.setData(out.hist ? out.data.map((v, i) => v === null ? { time: D.T[i] } : { time: D.T[i], value: v, color: out.colorAt(i) }) : lineData(out, D.T));
+        items.push({ out, series: s });
+      }
+      const ref = items.find(x => !x.out.hist)?.series || items[0].series;
+      (def.levels || []).forEach(lv => ref.createPriceLine({ price: lv, color: '#787b86', lineWidth: 1, lineStyle: LW.LineStyle.Dashed, axisLabelVisible: false }));
+      if (def.band) ref.applyOptions({ autoscaleInfoProvider: () => ({ priceRange: { minValue: def.band[0], maxValue: def.band[1] } }) });
+      panes.push({ inst, chart: ch, el, legend: $('.legend', el), items });
+    }
+  }
+  // sólo el último panel muestra el eje de tiempo
+  main.applyOptions({ timeScale: { visible: panes.length === 0 } });
+  panes.forEach((p, k) => p.chart.applyOptions({ timeScale: { visible: k === panes.length - 1 } }));
+  panes.forEach(p => hookSync(p.chart));
+  const r = main.timeScale().getVisibleLogicalRange();
+  if (r) panes.forEach(p => p.chart.timeScale().setVisibleLogicalRange(r));
+  renderLegends(null);
+}
+
+/* sincronización de zoom y cruz entre paneles */
+let syncing = false;
+const allCharts = () => [main, ...panes.map(p => p.chart)];
+function hookSync(ch) {
+  ch.timeScale().subscribeVisibleLogicalRangeChange(r => {
+    if (syncing || !r) return; syncing = true;
+    allCharts().forEach(o => { if (o !== ch) o.timeScale().setVisibleLogicalRange(r); });
+    syncing = false;
+  });
+  ch.subscribeCrosshairMove(param => {
+    if (syncing) return; syncing = true;
+    const t = param.time, idx = t !== undefined ? idxByTime.get(t) : undefined;
+    if (ch !== main) { if (t === undefined) main.clearCrosshairPosition(); else main.setCrosshairPosition(D.c[idx] ?? 0, t, candle); }
+    panes.forEach(p => {
+      if (p.chart === ch) return;
+      if (t === undefined || idx === undefined) { p.chart.clearCrosshairPosition(); return; }
+      const it = p.items.find(x => !x.out.hist) || p.items[0];
+      p.chart.setCrosshairPosition(it.out.data[idx] ?? 0, t, it.series);
+    });
+    syncing = false;
+    renderLegends(idx ?? null);
+  });
+}
+hookSync(main);
+
+/* leyendas al estilo TradingView */
+function indRowActions(inst) {
+  return `<span class="acts"><button class="act" data-edit="${inst.id}" title="Configurar" aria-label="Configurar">⚙</button><button class="act" data-del="${inst.id}" title="Quitar" aria-label="Quitar">×</button></span>`;
+}
+function renderLegends(idx) {
+  if (!D || !D.c.length) { $('#mainLegend').innerHTML = ''; return; }
+  const i = idx === null || idx === undefined ? D.c.length - 1 : idx;
+  const up = D.c[i] >= D.o[i], cls = up ? 'pos' : 'neg';
+  const prev = i > 0 ? D.c[i - 1] : D.o[i], ch = D.c[i] - prev, chp = ch / prev * 100;
+  let h = `<div class="row"><span class="ttl">${esc(S.symbol)} · ${esc(TFS.find(x => x[0] === S.tf)?.[1] || S.tf)} · ${S.src === 'csv' ? 'CSV' : 'Binance'}</span>
+    <span class="ohlc ${cls}"><span><b>A</b>${fp(D.o[i])}</span><span><b>M</b>${fp(D.h[i])}</span><span><b>m</b>${fp(D.l[i])}</span><span><b>C</b>${fp(D.c[i])}</span><span>${ch >= 0 ? '+' : ''}${fp(ch)} (${ch >= 0 ? '+' : ''}${chp.toFixed(2)}%)</span></span></div>`;
+  const byInst = new Map();
+  overlaySeries.forEach(o => { if (!byInst.has(o.inst.id)) byInst.set(o.inst.id, { inst: o.inst, outs: [] }); byInst.get(o.inst.id).outs.push(o.out); });
+  for (const inst of S.inds) {
+    const def = IND[inst.type]; if (!def || !def.overlay) continue;
+    let vals = '';
+    if (def.volume) vals = `<span class="val">${fvol(D.v[i])}</span>`;
+    else { const g = byInst.get(inst.id); if (!g) continue; vals = g.outs.map(o => `<span class="val" style="color:${o.colorAt ? o.colorAt(i) : o.color}">${fp(o.data[i])}</span>`).join(' '); }
+    h += `<div class="row ind"><span>${esc(def.short)} ${Object.values(inst.p).join(' ')}</span> ${vals}${indRowActions(inst)}</div>`;
+  }
+  if (S.plots.length) h += `<div class="row"><span>Estrategia</span> ${S.plots.map(o => `<span class="val" style="color:${o.color}">${esc(o.title)} ${fp(o.data[i])}</span>`).join(' ')}</div>`;
+  $('#mainLegend').innerHTML = h;
+  for (const p of panes) {
+    const def = IND[p.inst.type];
+    p.legend.innerHTML = `<div class="row ind"><span>${esc(def.short)} ${Object.values(p.inst.p).join(' ')}</span> ${p.items.map(x => `<span class="val" style="color:${x.out.colorAt ? x.out.colorAt(i) : x.out.color}">${fp(x.out.data[i], x.out.dp ?? PDP)}</span>`).join(' ')}${indRowActions(p.inst)}</div>`;
+  }
+}
+document.addEventListener('click', (e) => {
+  const del = e.target.closest('[data-del]'), edit = e.target.closest('[data-edit]');
+  if (del) { S.inds = S.inds.filter(x => x.id !== del.dataset.del); save(); buildIndicators(); renderInstList(); }
+  if (edit) { openDrawer('#indDrawer'); const el = $(`#inst-${edit.dataset.edit}`); el && el.scrollIntoView({ block: 'center' }); }
+});
+
+/* ---------- Datos ---------- */
+function setStatus(kind, txt) { const s = $('#status'); s.className = 'status ' + kind; $('#statusTxt').textContent = txt; }
+function showOverlay(html) { const o = $('#overlay'); if (!html) { o.hidden = true; return; } o.hidden = false; $('.box', o).innerHTML = html; }
+
+async function fetchJSON(path) {
+  let lastErr;
+  for (const base of REST) {
+    try {
+      const r = await fetch(base + path);
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.msg || ('HTTP ' + r.status));
+      return j;
+    } catch (e) { lastErr = e; }
+  }
+  throw lastErr;
+}
+async function fetchKlines(sym, tf, total) {
+  let out = [], end = null;
+  while (out.length < total) {
+    const lim = Math.min(1000, total - out.length);
+    const k = await fetchJSON(`/api/v3/klines?symbol=${sym}&interval=${tf}&limit=${lim}${end ? '&endTime=' + end : ''}`);
+    if (!k.length) break;
+    out = k.map(r => ({ t: r[0], o: +r[1], h: +r[2], l: +r[3], c: +r[4], v: +r[5] })).concat(out);
+    end = k[0][0] - 1;
+    if (k.length < lim) break;
+  }
+  return out;
+}
+function normSymbol(v) {
+  v = v.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (!v) return null;
+  return QUOTES.some(q => v.endsWith(q) && v.length > q.length) ? v : v + 'USDT';
+}
+
+async function load() {
+  const id = ++S.loadId;
+  closeWS();
+  $('#symbol').value = S.symbol;
+  showOverlay(`<div class="spinner"></div><p>Cargando ${esc(S.symbol)} en ${esc(TFS.find(x => x[0] === S.tf)?.[1])}…</p>`);
+  setStatus('', 'Conectando');
+  try {
+    const bars = await fetchKlines(S.symbol, S.tf, S.barsN);
+    if (id !== S.loadId) return;
+    if (!bars.length) throw new Error('Binance no devolvió velas para ' + S.symbol);
+    S.src = 'binance'; setBars(bars, true); openWS(id);
+  } catch (e) {
+    if (id !== S.loadId) return;
+    const msg = String(e.message || e);
+    const invalid = /Invalid symbol/i.test(msg);
+    setStatus('err', invalid ? 'Par inválido' : 'Sin conexión');
+    showOverlay(invalid
+      ? `<h2>No existe el par ${esc(S.symbol)} en Binance</h2><p>Probá con el formato BASE + COTIZACIÓN, por ejemplo SOLUSDT o ETHBTC.</p>`
+      : `<h2>No se pudo conectar con Binance</h2><p>Este navegador no llega a la API de Binance. Abrí la app desde tu propio navegador o servidor, o importá velas exportadas de TradingView (menú del gráfico → Exportar datos del gráfico).</p>
+         <button class="btn" onclick="document.getElementById('csv').click()">Importar CSV</button> <button class="btn ghost" id="retry">Reintentar</button>`);
+    const r = $('#retry'); r && (r.onclick = load);
+  }
+}
+function setBars(bars, fit) {
+  S.bars = bars; D = columns(bars);
+  idxByTime.clear(); D.T.forEach((t, i) => idxByTime.set(t, i));
+  const pf = priceFormat(D.c[D.c.length - 1]); PDP = pf.precision;
+  candle.applyOptions({ priceFormat: pf });
+  candle.setData(bars.map((b, i) => ({ time: D.T[i], open: b.o, high: b.h, low: b.l, close: b.c })));
+  buildIndicators();
+  runStrategy();
+  showOverlay(null);
+  if (fit) { const n = D.c.length; main.timeScale().setVisibleLogicalRange({ from: Math.max(0, n - 160), to: n + 8 }); }
+  if (S.src === 'csv') setStatus('', 'CSV · ' + bars.length.toLocaleString('es-AR') + ' velas');
+}
+
+/* tiempo real por WebSocket */
+function closeWS() { if (S.ws) { S.ws.onclose = null; S.ws.close(); S.ws = null; } }
+function openWS(id, k = 0) {
+  if (id !== S.loadId) return;
+  let ws;
+  try { ws = new WebSocket(WSS[k % WSS.length] + S.symbol.toLowerCase() + '@kline_' + S.tf); } catch { setStatus('', 'Histórico'); return; }
+  S.ws = ws;
+  ws.onopen = () => setStatus('live', 'En vivo');
+  ws.onmessage = (ev) => { try { onTick(JSON.parse(ev.data).k); } catch {} };
+  ws.onclose = () => { if (id !== S.loadId) return; setStatus('', 'Histórico · reconectando'); setTimeout(() => openWS(id, k + 1), 3000); };
+}
+function onTick(k) {
+  if (!k || !S.bars.length) return;
+  const b = { t: k.t, o: +k.o, h: +k.h, l: +k.l, c: +k.c, v: +k.v };
+  const last = S.bars[S.bars.length - 1];
+  if (b.t === last.t) S.bars[S.bars.length - 1] = b;
+  else if (b.t > last.t) S.bars.push(b);
+  else return;
+  const isNew = b.t !== last.t;
+  D = columns(S.bars);
+  if (isNew) { idxByTime.set(D.T[D.T.length - 1], D.T.length - 1); }
+  candle.update({ time: toCT(b.t), open: b.o, high: b.h, low: b.l, close: b.c });
+  if (volSeries) volSeries.update({ time: toCT(b.t), value: b.v, color: b.c >= b.o ? 'rgba(8,153,129,.45)' : 'rgba(242,54,69,.45)' });
+  // indicadores: recalcular y actualizar el último punto
+  overlaySeries.forEach(o => { const outs = IND[o.inst.type].calc(D, o.inst.p, o.inst.color); const out = outs.find(x => x.title === o.out.title) || outs[0]; o.out = out; o.series.update(point(out, D.T, D.T.length - 1)); });
+  panes.forEach(p => { const outs = IND[p.inst.type].calc(D, p.inst.p, p.inst.color);
+    p.items.forEach((it, j) => { it.out = outs[j]; const i = D.T.length - 1, v = outs[j].data[i];
+      it.series.update(v === null ? { time: D.T[i] } : it.out.hist ? { time: D.T[i], value: v, color: it.out.colorAt(i) } : point(it.out, D.T, i)); }); });
+  renderLegends(null);
+  if (isNew || k.x) runStrategy();
+}
+
+/* importar CSV exportado de TradingView */
+$('#csv').addEventListener('change', async (e) => {
+  const f = e.target.files[0]; if (!f) return; e.target.value = '';
+  try {
+    const rows = (await f.text()).trim().split(/\r?\n/).map(r => r.split(','));
+    const head = rows[0].map(x => x.trim().toLowerCase().replace(/"/g, ''));
+    const col = (n) => head.findIndex(h => h === n || h.startsWith(n));
+    const ix = { t: col('time'), o: col('open'), h: col('high'), l: col('low'), c: col('close'), v: col('volume') };
+    if ([ix.t, ix.o, ix.h, ix.l, ix.c].some(x => x < 0)) throw new Error('El archivo necesita columnas time, open, high, low y close.');
+    const bars = rows.slice(1).map(r => {
+      const raw = r[ix.t].replace(/"/g, ''); let t = Number(raw);
+      t = isNaN(t) ? Date.parse(raw) : (t < 1e12 ? t * 1000 : t);
+      return { t, o: +r[ix.o], h: +r[ix.h], l: +r[ix.l], c: +r[ix.c], v: ix.v >= 0 ? +r[ix.v] || 0 : 0 };
+    }).filter(b => isFinite(b.t) && isFinite(b.c)).sort((a, b) => a.t - b.t);
+    if (bars.length < 50) throw new Error('El archivo tiene muy pocas velas.');
+    S.loadId++; closeWS();
+    const m = f.name.match(/_([A-Z0-9]+)[,. ]/i); S.symbol = m ? m[1].toUpperCase() : f.name.replace(/\.csv$/i, '');
+    $('#symbol').value = S.symbol; S.src = 'csv'; setBars(bars, true);
+  } catch (err) { alert('No se pudo leer el CSV: ' + err.message); }
+});
+
+/* ---------- Estrategia y backtest ---------- */
+function clearStrategyDrawing() {
+  candle.setMarkers([]);
+  stratSeries.forEach(s => main.removeSeries(s)); stratSeries = [];
+  priceLines.forEach(p => candle.removePriceLine(p)); priceLines = [];
+  S.plots = [];
+}
+function compileCode() {
+  const d = { open: D.o, high: D.h, low: D.l, close: D.c, volume: D.v, time: D.t };
+  const fn = new Function('open', 'high', 'low', 'close', 'volume', 'time', 'ta', '"use strict";\n' + S.code);
+  const r = fn(d.open, d.high, d.low, d.close, d.volume, d.time, TA);
+  if (!r || typeof r.longEntry !== 'function' || typeof r.shortEntry !== 'function') throw new Error('El código tiene que devolver { longEntry, shortEntry } como funciones.');
+  return r;
+}
+function runStrategy() {
+  clearStrategyDrawing();
+  $('#codeErr').textContent = '';
+  if (!D || D.c.length < 30) return;
+  let sig;
+  try { sig = S.mode === 'code' ? compileCode() : buildStrategy(S.bars, S.strat); }
+  catch (e) { $('#codeErr').textContent = 'Error: ' + e.message; S.result = null; renderTester(); return; }
+  try { S.result = runBacktest(S.bars, sig, S.cfg); }
+  catch (e) { $('#codeErr').textContent = 'Error al ejecutar: ' + e.message; S.result = null; renderTester(); return; }
+  if (S.mode === 'code' && Array.isArray(sig.plots)) S.plots = sig.plots.filter(p => Array.isArray(p.data)).map(p => ({ color: '#ffffff', ...p }));
+  if (S.stratOn) drawStrategy();
+  renderTester(); renderLegends(null);
+}
+function drawStrategy() {
+  const r = S.result; if (!r) return;
+  for (const p of S.plots) {
+    const s = main.addLineSeries({ color: p.color, lineWidth: 2, lastValueVisible: false, priceLineVisible: false, crosshairMarkerVisible: false });
+    s.setData(lineData(p, D.T)); stratSeries.push(s);
+  }
+  const mk = [];
+  for (const t of r.trades) {
+    const L = t.side === 1;
+    mk.push({ time: D.T[t.entryIdx], position: L ? 'belowBar' : 'aboveBar', color: L ? '#2962ff' : '#f23645', shape: L ? 'arrowUp' : 'arrowDown', text: L ? 'Largo' : 'Corto' });
+    mk.push({ time: D.T[t.exitIdx], position: L ? 'aboveBar' : 'belowBar', color: t.pnl >= 0 ? '#089981' : '#f23645', shape: 'circle', text: (t.pnl >= 0 ? '+' : '') + t.pnlPct.toFixed(1) + '%' });
+  }
+  const o = r.openTrade;
+  if (o) {
+    mk.push({ time: D.T[o.entryIdx], position: o.side === 1 ? 'belowBar' : 'aboveBar', color: o.side === 1 ? '#2962ff' : '#f23645', shape: o.side === 1 ? 'arrowUp' : 'arrowDown', text: (o.side === 1 ? 'Largo' : 'Corto') + ' abierta' });
+    priceLines.push(candle.createPriceLine({ price: o.entry, color: '#2962ff', lineWidth: 1, lineStyle: LW.LineStyle.Dotted, title: 'Entrada' }));
+    if (o.sl !== null) priceLines.push(candle.createPriceLine({ price: o.sl, color: '#f23645', lineWidth: 1, lineStyle: LW.LineStyle.Dashed, title: 'Stop' }));
+    if (o.tp !== null) priceLines.push(candle.createPriceLine({ price: o.tp, color: '#089981', lineWidth: 1, lineStyle: LW.LineStyle.Dashed, title: 'Objetivo' }));
+  }
+  mk.sort((a, b) => a.time - b.time);
+  candle.setMarkers(mk);
+}
+
+/* ---------- Probador ---------- */
+const money = (v) => (v < 0 ? '−' : '') + Math.abs(v).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' USDT';
+const pct = (v) => (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v).toLocaleString('es-AR', { maximumFractionDigits: 2, minimumFractionDigits: 2 }) + '%';
+const sg = (v) => v > 0 ? 'pos' : v < 0 ? 'neg' : '';
+const fdate = (t) => new Date(t).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
+let eqChart = null, eqSeries = null;
+function renderTester() {
+  const r = S.result;
+  if (!r) {
+    $('#sumLine').textContent = ''; $('#stats').innerHTML = '<p class="empty">Sin resultados. Revisá la estrategia.</p>'; $('#trades').innerHTML = '';
+    if (eqSeries) eqSeries.setData([]); renderPine(); return;
+  }
+  const s = r.stats;
+  $('#sumLine').innerHTML = `<span class="${sg(s.net)}">${pct(s.netPct)}</span> · ${s.trades} op.`;
+  const n2 = (v, d = 2) => v.toLocaleString('es-AR', { minimumFractionDigits: d, maximumFractionDigits: d });
+  const pf = s.profitFactor === Infinity ? '∞' : n2(s.profitFactor);
+  const st = [
+    ['Beneficio neto', `<span class="${sg(s.net)}">${money(s.net)}</span>`, `<span class="${sg(s.net)}">${pct(s.netPct)}</span>`],
+    ['Total de operaciones', s.trades, `${s.longs} largos · ${s.shorts} cortos`],
+    ['Rentables', s.trades ? n2(s.winRate, 1) + '%' : '—', `${s.wins} / ${s.trades}`],
+    ['Factor de beneficio', s.trades ? pf : '—', ''],
+    ['Drawdown máximo', `<span class="neg">${money(-s.maxDD)}</span>`, `<span class="neg">${pct(-s.maxDDpct)}</span>`],
+    ['Promedio por operación', `<span class="${sg(s.avgTrade)}">${money(s.avgTrade)}</span>`, ''],
+    ['Ganancia / pérdida prom.', s.avgLoss ? n2(s.avgWin / s.avgLoss) : '—', `${money(s.avgWin)} / ${money(-s.avgLoss)}`],
+    ['Comprar y mantener', `<span class="${sg(s.buyHoldPct)}">${pct(s.buyHoldPct)}</span>`, 'mismo período'],
+  ];
+  if (r.openTrade) st.push(['Posición abierta', r.openTrade.side === 1 ? 'Largo' : 'Corto', `<span class="${sg(r.openTrade.unrealized)}">${money(r.openTrade.unrealized)}</span>`]);
+  $('#stats').innerHTML = st.map(([k, v, x]) => `<div class="stat"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${x}</div></div>`).join('');
+  if (!eqChart) {
+    eqChart = LW.createChart($('#equity'), { ...chartOpts(true), rightPriceScale: { borderColor: '#2a2e39', minimumWidth: 72 }, handleScroll: false, handleScale: false });
+    eqSeries = eqChart.addBaselineSeries({ baseValue: { type: 'price', price: S.cfg.capital }, lineWidth: 2, priceLineVisible: false,
+      topLineColor: '#089981', topFillColor1: 'rgba(8,153,129,.28)', topFillColor2: 'rgba(8,153,129,.03)',
+      bottomLineColor: '#f23645', bottomFillColor1: 'rgba(242,54,69,.03)', bottomFillColor2: 'rgba(242,54,69,.28)' });
+  }
+  eqSeries.applyOptions({ baseValue: { type: 'price', price: S.cfg.capital } });
+  eqSeries.setData(r.equityCurve.map(p => ({ time: toCT(p.t), value: +p.v.toFixed(2) })));
+  eqChart.timeScale().fitContent();
+  // tabla de operaciones (las más recientes primero)
+  if (!r.trades.length) $('#trades').innerHTML = '<p class="empty">La estrategia no generó operaciones en este período.</p>';
+  else $('#trades').innerHTML = `<table><thead><tr><th>#</th><th>Tipo</th><th>Entrada</th><th>Precio</th><th>Salida</th><th>Precio</th><th>Motivo</th><th>Resultado</th><th>%</th><th>Capital</th></tr></thead><tbody>${
+    r.trades.map((t, k) => ({ t, k })).reverse().map(({ t, k }) => `<tr data-i="${k}"><td>${k + 1}</td><td class="${t.side === 1 ? '' : 'neg'}">${t.side === 1 ? 'Largo' : 'Corto'}</td><td>${fdate(t.entryTime)}</td><td>${fp(t.entry)}</td><td>${fdate(t.exitTime)}</td><td>${fp(t.exit)}</td><td>${t.reason}</td><td class="${sg(t.pnl)}">${money(t.pnl)}</td><td class="${sg(t.pnl)}">${pct(t.pnlPct)}</td><td>${money(t.equity)}</td></tr>`).join('')}</tbody></table>`;
+  renderPine();
+}
+$('#trades').addEventListener('click', (e) => {
+  const tr = e.target.closest('tr[data-i]'); if (!tr || !S.result) return;
+  const t = S.result.trades[+tr.dataset.i]; const pad = Math.max(30, (t.exitIdx - t.entryIdx));
+  main.timeScale().setVisibleLogicalRange({ from: t.entryIdx - pad, to: t.exitIdx + pad });
+});
+function renderPine() {
+  if (S.mode === 'code') { $('#pineNote').textContent = 'La exportación a Pine funciona con el modo Constructor. En modo Código, tus reglas son JavaScript y hay que pasarlas a mano.'; $('#pine').textContent = ''; $('#copyPine').hidden = true; return; }
+  $('#copyPine').hidden = false;
+  $('#pineNote').textContent = 'Pegá este código en el Editor Pine de TradingView. Usa las mismas reglas, comisión y tamaño de posición, así podés comparar resultados.';
+  $('#pine').textContent = toPine(S.strat, S.cfg, S.symbol);
+}
+$('#copyPine').onclick = async () => {
+  try { await navigator.clipboard.writeText($('#pine').textContent); $('#copyPine').textContent = 'Copiado'; }
+  catch { const rg = document.createRange(); rg.selectNodeContents($('#pine')); getSelection().removeAllRanges(); getSelection().addRange(rg); $('#copyPine').textContent = 'Seleccionado, copiá con Ctrl+C'; }
+  setTimeout(() => $('#copyPine').textContent = 'Copiar código', 2000);
+};
+$$('.tab').forEach(b => b.onclick = () => {
+  $$('.tab').forEach(x => x.setAttribute('aria-selected', x === b));
+  $$('.tpanel').forEach(p => p.hidden = p.dataset.panel !== b.dataset.tab);
+  setTester(true);
+});
+function setTester(open) { $('#tester').classList.toggle('collapsed', !open); $('#toggleTester').textContent = open ? '▾' : '▴'; $('#toggleTester').setAttribute('aria-expanded', open); }
+$('#toggleTester').onclick = () => setTester($('#tester').classList.contains('collapsed'));
+
+/* ---------- Panel de indicadores ---------- */
+function renderAddList() {
+  $('#addList').innerHTML = Object.entries(IND).map(([k, d]) => `<button data-add="${k}">${esc(d.label)}<br><span class="hint">${esc(d.short)}${d.overlay ? ' · sobre el precio' : ' · panel propio'}</span></button>`).join('');
+}
+$('#addList').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-add]'); if (!b) return;
+  const def = IND[b.dataset.add];
+  const p = Object.fromEntries(Object.entries(def.params).map(([k, v]) => [k, v[1]]));
+  const used = new Set(S.inds.map(i => i.color));
+  const inst = { id: 'i' + Date.now().toString(36), type: b.dataset.add, p, color: PALETTE.find(c => !used.has(c)) || PALETTE[0] };
+  S.inds.push(inst); save(); buildIndicators(); renderInstList();
+  $(`#inst-${inst.id}`)?.scrollIntoView({ block: 'nearest' });
+});
+function renderInstList() {
+  if (!S.inds.length) { $('#instList').innerHTML = '<p class="empty">No hay indicadores. Agregá uno de la lista.</p>'; return; }
+  $('#instList').innerHTML = S.inds.map(inst => {
+    const def = IND[inst.type];
+    return `<div class="inst" id="inst-${inst.id}"><div class="h"><span>${esc(def.label)}</span>
+      ${def.volume || inst.type === 'st' ? '' : `<input type="color" value="${inst.color}" data-color="${inst.id}" aria-label="Color">`}
+      <button class="x" data-del="${inst.id}" aria-label="Quitar">×</button></div>
+      ${Object.entries(def.params).map(([k, [lbl]]) => `<div class="f"><label for="p-${inst.id}-${k}">${esc(lbl)}</label><input type="number" id="p-${inst.id}-${k}" data-inst="${inst.id}" data-k="${k}" value="${inst.p[k]}" step="${k === 'mult' || k === 'factor' ? 0.1 : 1}" min="${k === 'mult' || k === 'factor' ? 0.1 : 1}"></div>`).join('')}
+    </div>`;
+  }).join('');
+}
+const rebuildInd = debounce(() => { save(); buildIndicators(); }, 250);
+$('#instList').addEventListener('input', (e) => {
+  const t = e.target;
+  if (t.dataset.color) { const inst = S.inds.find(i => i.id === t.dataset.color); inst.color = t.value; rebuildInd(); }
+  if (t.dataset.inst) { const v = parseFloat(t.value); if (!(v > 0)) return; const inst = S.inds.find(i => i.id === t.dataset.inst); inst.p[t.dataset.k] = ['mult', 'factor'].includes(t.dataset.k) ? v : Math.round(v); rebuildInd(); }
+});
+
+/* ---------- Panel de estrategia ---------- */
+const SF = [
+  { sec: 'Señal de entrada' },
+  { k: 'entry', l: 'Disparador', type: 'select', opts: [['emaCross', 'Cruce EMA rápida / lenta'], ['priceCross', 'Precio cruza la EMA lenta'], ['macdCross', 'MACD cruza su señal'], ['stFlip', 'Cambio de SuperTrend']] },
+  { k: 'fastLen', l: 'EMA rápida', type: 'num' }, { k: 'slowLen', l: 'EMA lenta', type: 'num' },
+  { k: 'stFactor', l: 'SuperTrend factor', type: 'num', step: 0.1, when: s => s.entry === 'stFlip' }, { k: 'stLen', l: 'SuperTrend ATR', type: 'num', when: s => s.entry === 'stFlip' },
+  { sec: 'Filtros' },
+  { k: 'useTrend', l: 'Sólo a favor de la EMA lenta', type: 'bool' },
+  { k: 'useRsi', l: 'Filtro RSI', type: 'bool' }, { k: 'rsiLen', l: 'RSI longitud', type: 'num', dep: 'useRsi' },
+  { k: 'rsiMin', l: 'RSI mínimo (largos)', type: 'num', dep: 'useRsi' }, { k: 'rsiMax', l: 'RSI máximo (largos)', type: 'num', dep: 'useRsi' },
+  { hint: 'En cortos se usa el rango espejo: de 100 − máximo a 100 − mínimo.' },
+  { k: 'useAdx', l: 'Filtro ADX', type: 'bool' }, { k: 'adxLen', l: 'ADX longitud', type: 'num', dep: 'useAdx' }, { k: 'adxMin', l: 'ADX mínimo', type: 'num', dep: 'useAdx' },
+  { k: 'useDi', l: '+DI / −DI a favor', type: 'bool', dep: 'useAdx' },
+  { sec: 'Salidas' },
+  { k: 'atrLen', l: 'ATR longitud', type: 'num' },
+  { k: 'useSl', l: 'Stop por ATR', type: 'bool' }, { k: 'slMult', l: 'Stop = ATR ×', type: 'num', step: 0.1, dep: 'useSl' },
+  { k: 'useTp', l: 'Objetivo por ATR', type: 'bool' }, { k: 'tpMult', l: 'Objetivo = ATR ×', type: 'num', step: 0.1, dep: 'useTp' },
+];
+const CF = [
+  { sec: 'Capital y costos' },
+  { k: 'direction', l: 'Operar', type: 'select', opts: [['both', 'Largos y cortos'], ['long', 'Sólo largos'], ['short', 'Sólo cortos']] },
+  { k: 'exitOnOpposite', l: 'Cerrar con la señal opuesta', type: 'bool', when: c => c.direction !== 'both' },
+  { k: 'capital', l: 'Capital inicial (USDT)', type: 'num', step: 100 },
+  { k: 'sizePct', l: 'Tamaño (% del capital)', type: 'num', step: 5 },
+  { k: 'commissionPct', l: 'Comisión por lado (%)', type: 'num', step: 0.01 },
+];
+function formHTML(fields, obj, scope) {
+  return fields.map(f => {
+    if (f.sec) return `<div class="sec">${f.sec}</div>`;
+    if (f.hint) return `<p class="hint">${f.hint}</p>`;
+    if (f.when && !f.when(obj)) return '';
+    const dis = f.dep && !obj[f.dep] ? ' dis' : '', id = `${scope}-${f.k}`;
+    const ctl = f.type === 'bool' ? `<input type="checkbox" id="${id}" data-s="${scope}" data-k="${f.k}" ${obj[f.k] ? 'checked' : ''}>`
+      : f.type === 'select' ? `<select id="${id}" data-s="${scope}" data-k="${f.k}">${f.opts.map(([v, l]) => `<option value="${v}" ${obj[f.k] === v ? 'selected' : ''}>${l}</option>`).join('')}</select>`
+      : `<input type="number" id="${id}" data-s="${scope}" data-k="${f.k}" value="${obj[f.k]}" step="${f.step || 1}" min="0" ${dis ? 'disabled' : ''}>`;
+    return `<div class="f${dis}"><label for="${id}">${f.l}</label>${ctl}</div>`;
+  }).join('');
+}
+function renderStratForm() {
+  $$('.seg button').forEach(b => b.setAttribute('aria-pressed', b.dataset.mode === S.mode));
+  $('#builder').hidden = S.mode !== 'builder'; $('#coder').hidden = S.mode !== 'code';
+  $('#builder').innerHTML = formHTML(SF, S.strat, 'strat') + formHTML(CF, S.cfg, 'cfg');
+  $('#coderCfg').innerHTML = formHTML(CF, S.cfg, 'cfg');
+  $('#stratOn').checked = S.stratOn;
+}
+const autoRun = debounce(() => { save(); runStrategy(); }, 350);
+$('#stratDrawer').addEventListener('change', (e) => {
+  const t = e.target; if (!t.dataset.k) return;
+  const obj = t.dataset.s === 'strat' ? S.strat : S.cfg;
+  const v = t.type === 'checkbox' ? t.checked : t.tagName === 'SELECT' ? t.value : parseFloat(t.value);
+  if (typeof v === 'number' && !(v >= 0)) return;
+  obj[t.dataset.k] = v;
+  if (t.type === 'checkbox' || t.tagName === 'SELECT') { const y = $('#stratDrawer .dbody').scrollTop; renderStratForm(); $('#stratDrawer .dbody').scrollTop = y; }
+  if (S.mode === 'builder') autoRun(); else save();
+});
+$$('.seg button').forEach(b => b.onclick = () => { S.mode = b.dataset.mode; save(); renderStratForm(); runStrategy(); });
+$('#stratOn').onchange = (e) => { S.stratOn = e.target.checked; save(); runStrategy(); };
+$('#code').value = S.code;
+$('#code').addEventListener('input', debounce(() => { S.code = $('#code').value; save(); }, 400));
+$('#code').addEventListener('keydown', (e) => {
+  if (e.key === 'Tab') { e.preventDefault(); const t = e.target, s = t.selectionStart; t.setRangeText('  ', s, t.selectionEnd, 'end'); }
+  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) $('#runBt').click();
+});
+$('#runBt').onclick = () => {
+  S.code = $('#code').value; save(); runStrategy();
+  if (!$('#codeErr').textContent) { if (innerWidth < 700) closeDrawers(); setTester(true); }
+};
+
+/* ---------- Paneles laterales ---------- */
+function openDrawer(sel) {
+  closeDrawers(); const d = $(sel); d.classList.add('open'); d.setAttribute('aria-hidden', 'false'); $('#scrim').hidden = false;
+  setTimeout(() => d.querySelector('.x')?.focus(), 50);
+}
+function closeDrawers() { $$('.drawer').forEach(d => { d.classList.remove('open'); d.setAttribute('aria-hidden', 'true'); }); $('#scrim').hidden = true; }
+$('#openInd').onclick = () => { renderInstList(); openDrawer('#indDrawer'); };
+$('#openStrat').onclick = () => { renderStratForm(); openDrawer('#stratDrawer'); };
+$('#scrim').onclick = closeDrawers;
+$$('[data-close]').forEach(b => b.onclick = closeDrawers);
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeDrawers(); });
+
+/* ---------- Barra superior ---------- */
+$('#symbols').innerHTML = SYMBOLS.map(s => `<option value="${s}">`).join('');
+$('#tfs').innerHTML = TFS.map(([v, l]) => `<button class="tb tf" data-tf="${v}" aria-pressed="${v === S.tf}">${l}</button>`).join('');
+$('#tfs').onclick = (e) => { const b = e.target.closest('[data-tf]'); if (!b) return;
+  S.tf = b.dataset.tf; $$('#tfs .tb').forEach(x => x.setAttribute('aria-pressed', x === b)); save(); load(); };
+$('#barsN').value = S.barsN;
+$('#barsN').onchange = (e) => { S.barsN = +e.target.value; save(); load(); };
+const symIn = $('#symbol');
+symIn.value = S.symbol;
+symIn.addEventListener('change', () => { const v = normSymbol(symIn.value); if (!v) { symIn.value = S.symbol; return; } if (v !== S.symbol || S.src !== 'binance') { S.symbol = v; save(); load(); } else symIn.value = v; symIn.blur(); });
+symIn.addEventListener('keydown', (e) => { if (e.key === 'Enter') symIn.blur(); });
+symIn.addEventListener('focus', () => symIn.select());
+
+if (innerWidth < 700) setTester(false);
+renderAddList(); renderStratForm();
+load();
+})();
+
+</script>
+</body>
+</html>
